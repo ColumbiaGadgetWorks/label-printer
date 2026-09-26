@@ -1,0 +1,44 @@
+# Two instances of the same image. The split is the security boundary: the
+# public one has no printer configured at all, so there is no code path from
+# the internet to the Zebra, regardless of headers, bugs or allowlists.
+services:
+
+  # ---- PUBLIC: this is the one NPM proxies to labels.comogadget.casa ----
+  # No CUPS_HOST, so /api/print answers 503 and the Direct print button never
+  # appears. Browser printing still works perfectly from anywhere.
+  label-printer-public:
+    build: .
+    image: label-printer:latest
+    container_name: label-printer-public
+    ports:
+      - "8088:8080"
+    restart: unless-stopped
+
+  # ---- LAN: never proxied, never port-forwarded, never given a DNS name ----
+  # Reach it directly on the LAN, e.g. http://192.168.1.10:8089
+  label-printer-lan:
+    build: .
+    image: label-printer:latest
+    container_name: label-printer-lan
+    ports:
+      - "8089:8080"
+    environment:
+      CUPS_HOST: "192.168.1.50"          # the Raspberry Pi running CUPS
+      CUPS_PRINTER: "Zebra_ZD410"        # queue name as CUPS knows it (lpstat -p)
+
+      # Required. There is no permissive default. Set this to your LAN subnet
+      # and nothing else. Do NOT include the Docker bridge range.
+      PRINT_ALLOW_CIDRS: "192.168.1.0/24"
+
+      # Optional second factor, for when "on the wifi" is not a tight enough
+      # boundary (guests, IoT VLAN, and so on).
+      # PRINT_TOKEN: "pick-something-long"
+
+      # Leave empty. Only set this if this instance is behind a reverse proxy,
+      # and then set it to that proxy's address. Anything listed here is
+      # permitted to declare who the client is via X-Forwarded-For.
+      TRUSTED_PROXIES: ""
+
+      CUPS_OPTIONS: "-o media=Custom.4x6in -o scaling=100"
+      PRINT_DPI: "203"                   # 203 for ZD410/GK420d; 300 for 300dpi models
+    restart: unless-stopped

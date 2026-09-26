@@ -1,0 +1,13 @@
+# Static-only fallback: browser printing works, direct print does not.
+# The Direct print button hides itself automatically when /api is absent.
+#   docker compose -f docker-compose.nobuild.yml up -d
+services:
+  label-printer:
+    image: nginx:alpine
+    container_name: label-printer
+    ports:
+      - "8088:80"
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped

@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Label Printer</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <header class="hdr">
+    <h1>Label Printer</h1>
+    <div class="modes" id="modes" role="tablist">
+      <button type="button" class="mode is-on" data-mode="single">4&#215;6 single</button>
+      <button type="button" class="mode" data-mode="triple">3 &#215; 2&#215;4 + cut marks</button>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <section class="panel controls">
+
+      <div class="group">
+        <label class="field">
+          <span class="lbl" id="lbl0">Label text</span>
+          <textarea id="t0" rows="4" placeholder="Type your label&#8230;" spellcheck="false"></textarea>
+        </label>
+        <label class="field only-triple">
+          <span class="lbl">Section 2 (middle)</span>
+          <textarea id="t1" rows="2" spellcheck="false"></textarea>
+        </label>
+        <label class="field only-triple">
+          <span class="lbl">Section 3 (bottom)</span>
+          <textarea id="t2" rows="2" spellcheck="false"></textarea>
+        </label>
+        <label class="chk only-triple">
+          <input type="checkbox" id="same"> <span>Repeat section 1 text in all three</span>
+        </label>
+      </div>
+
+      <div class="group grid2">
+        <label class="field">
+          <span class="lbl">Font</span>
+          <select id="font">
+            <option value="sans">Sans (Helvetica / Arial)</option>
+            <option value="cond">Condensed (fits more)</option>
+            <option value="wide">Wide (Verdana)</option>
+            <option value="serif">Serif (Georgia)</option>
+            <option value="mono">Mono (Consolas)</option>
+          </select>
+        </label>
+        <div class="field">
+          <span class="lbl">Align</span>
+          <div class="seg" id="align">
+            <button type="button" data-align="left" title="Left">&#8676;</button>
+            <button type="button" data-align="center" class="is-on" title="Centre">&#8596;</button>
+            <button type="button" data-align="right" title="Right">&#8677;</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="lbl">Style</span>
+        <div class="toggles">
+          <button type="button" class="tog" id="bold"><b>B</b></button>
+          <button type="button" class="tog" id="under"><u>U</u></button>
+          <button type="button" class="tog" id="caps">CAPS</button>
+          <button type="button" class="tog is-on" id="wrap">Wrap</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="row-head">
+          <span class="lbl">Text size</span>
+          <label class="chk inline"><input type="checkbox" id="auto" checked> <span>Auto&#8209;fit</span></label>
+        </div>
+        <div class="sizerow">
+          <input type="range" id="size" min="6" max="140" step="1" value="36" disabled>
+          <output id="sizeOut" class="sizeout">auto</output>
+        </div>
+        <label class="chk only-triple"><input type="checkbox" id="match" checked> <span>Match text size across sections</span></label>
+      </div>
+
+      <div class="group">
+        <span class="lbl">Edge padding</span>
+        <div class="seg wide" id="pad">
+          <button type="button" data-pad="0.06in">Tight</button>
+          <button type="button" data-pad="0.14in" class="is-on">Normal</button>
+          <button type="button" data-pad="0.28in">Roomy</button>
+        </div>
+      </div>
+
+      <div class="group actions">
+        <button type="button" id="clear" class="ghost">Clear text</button>
+      </div>
+    </section>
+
+    <section class="panel preview">
+      <div class="stage" id="stage">
+        <div class="stage-inner" id="stageInner">
+
+          <div id="label" class="label" data-mode="single">
+            <div class="cell" data-i="0"><div class="txt"><span class="inner"></span></div></div>
+            <div class="cell" data-i="1"><div class="txt"><span class="inner"></span></div></div>
+            <div class="cell" data-i="2"><div class="txt"><span class="inner"></span></div></div>
+
+            <div class="guides screen-only" aria-hidden="true">
+              <i class="guide" style="top:2in"></i>
+              <i class="guide" style="top:4in"></i>
+            </div>
+            <div class="marks" aria-hidden="true">
+              <i class="mk" style="top:2in;left:0"></i>
+              <i class="mk" style="top:2in;right:0"></i>
+              <i class="mk" style="top:4in;left:0"></i>
+              <i class="mk" style="top:4in;right:0"></i>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <p class="cap" id="cap">4&#215;6&#8243; label &#183; actual size preview</p>
+    </section>
+
+  </main>
+
+  <footer class="foot">
+    <div class="printrow">
+      <button type="button" id="direct" class="printbtn alt" hidden disabled>Direct print</button>
+      <button type="button" id="print" class="printbtn">Print</button>
+    </div>
+    <p class="status" id="status" role="status" hidden></p>
+    <p class="hint" id="hint">Opens your browser&#8217;s print dialog. Choose your Zebra there.
+      Set <b>Paper&nbsp;4&#215;6</b>, <b>Margins&nbsp;None</b>, <b>Scale&nbsp;100%</b>.</p>
+  </footer>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

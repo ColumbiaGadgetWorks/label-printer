@@ -1,0 +1,188 @@
+/* ---------- tokens ---------- */
+:root{
+  --bg:#f4f5f7; --panel:#ffffff; --ink:#15171a; --muted:#6b7280;
+  --line:#e2e5ea; --accent:#2563eb; --accent-ink:#ffffff;
+  --field:#ffffff; --field-line:#cfd4dc; --radius:10px;
+  --pad:0.14in; --scale:1;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#111418; --panel:#181c22; --ink:#e8eaed; --muted:#9aa3af;
+    --line:#272d35; --accent:#3b82f6; --field:#10141a; --field-line:#323a45;
+  }
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-text-size-adjust:100%;
+  print-color-adjust:exact; -webkit-print-color-adjust:exact;
+}
+
+.app{max-width:1100px;margin:0 auto;padding:16px 16px 0;min-height:100vh;display:flex;flex-direction:column}
+
+/* ---------- header ---------- */
+.hdr{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.hdr h1{font-size:18px;margin:0;letter-spacing:-.01em}
+.modes{display:flex;gap:6px;background:var(--panel);padding:4px;border-radius:var(--radius);border:1px solid var(--line)}
+.mode{
+  appearance:none;border:0;background:transparent;color:var(--muted);
+  font:inherit;font-size:13px;font-weight:600;padding:7px 12px;border-radius:7px;cursor:pointer;white-space:nowrap;
+}
+.mode.is-on{background:var(--accent);color:var(--accent-ink)}
+
+/* ---------- layout ---------- */
+.main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,340px);gap:16px;align-items:start;flex:1}
+@media (max-width:860px){ .main{grid-template-columns:1fr} .preview{order:-1} }
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.controls{display:flex;flex-direction:column;gap:18px}
+
+.group{display:flex;flex-direction:column;gap:8px}
+.grid2{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.lbl{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+.row-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+
+textarea,select{
+  width:100%;font:inherit;color:var(--ink);background:var(--field);
+  border:1px solid var(--field-line);border-radius:var(--radius);padding:10px;
+}
+textarea{resize:vertical;min-height:52px;line-height:1.35}
+select{height:40px;padding:0 10px}
+textarea:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);cursor:pointer}
+.chk.inline{font-size:12px;font-weight:600}
+.chk input{width:17px;height:17px;accent-color:var(--accent);margin:0}
+
+/* segmented + toggles */
+.seg{display:flex;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:var(--radius);padding:4px}
+.seg.wide{display:grid;grid-template-columns:repeat(3,1fr)}
+.seg button{
+  appearance:none;border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:600;
+  padding:7px 12px;border-radius:7px;cursor:pointer;min-width:40px;
+}
+.seg button.is-on{background:var(--accent);color:var(--accent-ink)}
+
+.toggles{display:flex;gap:8px;flex-wrap:wrap}
+.tog{
+  appearance:none;border:1px solid var(--field-line);background:var(--field);color:var(--muted);
+  font:inherit;font-size:13px;font-weight:600;padding:9px 14px;border-radius:var(--radius);cursor:pointer;min-width:48px;
+}
+.tog.is-on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+
+.sizerow{display:flex;align-items:center;gap:12px}
+#size{flex:1;accent-color:var(--accent);min-width:0}
+#size:disabled{opacity:.4}
+.sizeout{font-variant-numeric:tabular-nums;font-size:13px;font-weight:600;color:var(--muted);min-width:52px;text-align:right}
+
+.actions{flex-direction:row}
+.ghost{
+  appearance:none;background:transparent;border:1px solid var(--field-line);color:var(--muted);
+  font:inherit;font-size:13px;padding:8px 14px;border-radius:var(--radius);cursor:pointer;
+}
+
+/* triple-only rows */
+.only-triple{display:none}
+body[data-mode="triple"] .only-triple{display:flex}
+body[data-mode="triple"] .only-triple.field{display:flex}
+
+/* ---------- preview ---------- */
+.preview{display:flex;flex-direction:column;align-items:center;gap:10px;position:sticky;top:16px}
+.stage{width:100%;display:flex;justify-content:center;overflow:hidden}
+.stage-inner{
+  width:calc(4in * var(--scale)); height:calc(6in * var(--scale));
+  position:relative;
+}
+.cap{margin:0;font-size:12px;color:var(--muted)}
+
+.label{
+  position:absolute;top:0;left:0;
+  width:4in;height:6in;background:#fff;color:#000;
+  transform:scale(var(--scale));transform-origin:top left;
+  display:flex;flex-direction:column;overflow:hidden;
+  border-radius:2px;box-shadow:0 1px 3px rgba(0,0,0,.2),0 8px 24px rgba(0,0,0,.12);
+}
+.cell{flex:1 1 0;min-height:0;padding:var(--pad);display:none}
+.label[data-mode="single"] .cell[data-i="0"]{display:block;flex:1 1 100%}
+.label[data-mode="triple"] .cell{display:block;height:2in;flex:0 0 2in}
+
+.txt{width:100%;height:100%;display:flex;align-items:center;overflow:hidden}
+.inner{
+  display:block;width:100%;
+  font-family:var(--ff,Helvetica,Arial,sans-serif);
+  font-size:36px;line-height:1.12;text-align:center;
+  /* normal (not `anywhere`): a word too wide for the line OVERFLOWS rather than
+     shattering, which is what lets the auto-fitter detect it and shrink instead
+     of happily splitting FRAGILE into "FRAGIL / E". */
+  white-space:pre-wrap;overflow-wrap:normal;word-break:normal;
+}
+.label[data-wrap="off"] .inner{white-space:pre}
+/* one nowrap token per word: lines may only break at spaces */
+.w{white-space:nowrap}
+/* with auto-fit off nothing shrinks, so wrap/break long words rather than clip them */
+.label[data-fit="manual"] .inner{overflow-wrap:break-word}
+.label[data-fit="manual"] .w{white-space:normal}
+
+/* cut marks: 4 ticks at the two division lines */
+.marks{display:none;position:absolute;inset:0;pointer-events:none}
+.label[data-mode="triple"] .marks{display:block}
+.mk{position:absolute;width:0.18in;height:1.5px;background:#000;transform:translateY(-50%)}
+
+/* screen-only dashed guides so the thirds are obvious while editing */
+.guides{display:none;position:absolute;inset:0;pointer-events:none}
+.label[data-mode="triple"] .guides{display:block}
+.guide{position:absolute;left:0;right:0;height:0;border-top:1px dashed rgba(0,0,0,.28);transform:translateY(-50%)}
+
+/* ---------- footer / print button ---------- */
+.main{padding-bottom:8px}
+.foot{position:sticky;bottom:0;background:var(--bg);padding:16px 0 18px;margin-top:8px;text-align:center}
+.foot::before{content:"";position:absolute;left:0;right:0;top:-22px;height:22px;background:linear-gradient(to top,var(--bg),transparent);pointer-events:none}
+.printbtn{
+  appearance:none;border:0;width:100%;max-width:420px;
+  background:var(--accent);color:var(--accent-ink);
+  font:inherit;font-size:19px;font-weight:700;letter-spacing:.02em;
+  padding:17px 24px;border-radius:14px;cursor:pointer;
+  box-shadow:0 2px 8px rgba(37,99,235,.35);
+}
+.printbtn:active{transform:translateY(1px)}
+.hint{margin:10px auto 0;max-width:460px;font-size:12px;line-height:1.5;color:var(--muted)}
+.printrow{display:flex;gap:10px;justify-content:center;max-width:520px;margin:0 auto}
+.printrow .printbtn{flex:1 1 0}
+.printbtn.alt{background:var(--panel);color:var(--accent);border:2px solid var(--accent);box-shadow:none}
+.printbtn.alt:disabled{color:var(--muted);border-color:var(--line);cursor:not-allowed;opacity:.65}
+.printbtn.alt.busy{opacity:.7;cursor:progress}
+.status{margin:10px auto 0;max-width:460px;font-size:13px;font-weight:600;line-height:1.45}
+.status.ok{color:#16a34a}
+.status.err{color:#dc2626}
+
+/* ---------- PRINT ---------- */
+@media print{
+  @page{ size:4in 6in; margin:0; }
+
+  html,body{background:#fff !important;margin:0 !important;padding:0 !important}
+  .screen-only{display:none !important}
+
+  /* drop every chrome element out of flow entirely */
+  .hdr,.controls,.foot,.cap{display:none !important}
+
+  /* neutralise the label's ancestors so nothing but the label occupies the page */
+  .app,.main,.preview,.stage,.stage-inner{
+    display:block !important; position:static !important;
+    width:auto !important; height:auto !important; min-height:0 !important; max-width:none !important;
+    margin:0 !important; padding:0 !important; border:0 !important;
+    background:none !important; box-shadow:none !important;
+    transform:none !important; overflow:visible !important; gap:0 !important;
+  }
+
+  #label{
+    position:fixed !important; left:0 !important; top:0 !important;
+    width:4in !important; height:6in !important;
+    transform:none !important; box-shadow:none !important; border-radius:0 !important;
+    background:#fff !important; color:#000 !important; overflow:hidden !important;
+  }
+  .guides{display:none !important}
+}
