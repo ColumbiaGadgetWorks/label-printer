@@ -326,6 +326,7 @@ Dockerfile                    python:alpine + cups-client
 docker-compose.yml            the two-instance deployment
 docker-compose.nobuild.yml    nginx, static only, no direct print
 unraid/label-printer.xml      Unraid Docker-tab template (LAN instance, :testing image)
+unraid/icon.svg, icon.png     container icon (PNG rendered from the SVG, 512×512)
 .github/workflows/docker.yml  tests, then build + push to ghcr.io
 nginx.conf                    used only by the nobuild variant
 web/index.html                image label page: crop, 1-bit conversion, ZPL

@@ -14,8 +14,8 @@
 This is the LAN instance: never port-forward it or put it behind a reverse proxy. Set PRINT_ALLOW_CIDRS to your LAN subnet only.</Overview>
   <Category>Tools: Productivity:</Category>
   <WebUI>http://[IP]:[PORT:8080]/</WebUI>
-  <TemplateURL/>
-  <Icon/>
+  <TemplateURL>https://raw.githubusercontent.com/ColumbiaGadgetWorks/label-printer/claude/serene-knuth-dw0n54/unraid/label-printer.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/ColumbiaGadgetWorks/label-printer/claude/serene-knuth-dw0n54/unraid/icon.png</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>
