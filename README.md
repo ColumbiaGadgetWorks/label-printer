@@ -203,16 +203,59 @@ The Direct print button hides itself automatically when `/api` is absent.
 
 ## Unraid
 
+### Test install with the Docker tab template
+
+Every push builds an image with GitHub Actions (`.github/workflows/docker.yml`)
+and pushes it to GitHub Container Registry:
+
+- `main` publishes `ghcr.io/columbiagadgetworks/label-printer:latest`
+- any other branch publishes `:testing`
+
+`unraid/label-printer.xml` is a Docker-tab template pointing at `:testing`.
+
+The repository is private, so two things need a GitHub token. Create a classic
+personal access token with the **repo** and **read:packages** scopes. Then, in
+the Unraid terminal:
+
+```bash
+GH_TOKEN=ghp_yourtoken
+GH_USER=your-github-username
+
+# 1. fetch the template into Unraid's user templates
+wget --header="Authorization: token $GH_TOKEN" \
+  -O /boot/config/plugins/dockerMan/templates-user/my-label-printer.xml \
+  https://raw.githubusercontent.com/ColumbiaGadgetWorks/label-printer/claude/serene-knuth-dw0n54/unraid/label-printer.xml
+
+# 2. let Docker pull the private image
+echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_USER" --password-stdin
+```
+
+Then go to **Docker → Add Container**, pick **label-printer** from the Template
+dropdown, check `CUPS_HOST`, `CUPS_PRINTER` and `PRINT_ALLOW_CIDRS`, and click
+Apply. Open `http://<unraid-ip>:8089`.
+
+Notes:
+
+- Skip step 2 if you make the package public under GitHub → Packages →
+  label-printer → Package settings. The image contains no secrets.
+- Unraid keeps `/root` in RAM, so the `docker login` is forgotten after a reboot.
+  That matters only when you pull an update; the running container is unaffected.
+- To update after a new push, use **Check for updates / force update** on the
+  container.
+- Open the UI from another device, not from a browser on the Unraid host
+  itself. The host reaches the container through the Docker bridge, so it is
+  seen as `172.17.0.1` and refused.
+- This template is the LAN instance. Never port-forward it or put it behind NPM.
+
+### Compose
+
 With the Compose Manager plugin, drop this folder in
 `/mnt/user/appdata/label-printer/` and point a stack at `docker-compose.yml`.
 
-For the Docker tab, add two containers from the same built image, differing only
-in port and environment, mirroring the compose file above. The public one gets no
-`CUPS_*` variables.
-
 Bridge networking preserves the real client address for LAN clients, which is what
 the allowlist depends on. If every caller is refused, check
-`docker logs label-printer-lan`: refusals log the address the server actually saw.
+`docker logs label-printer-lan` (or `label-printer` for the template install):
+refusals log the address the server actually saw.
 
 ---
 
@@ -291,6 +334,8 @@ test_zpl.py                   ZPL encoder round-trip + /api/print-bitmap end to 
 Dockerfile                    python:alpine + cups-client
 docker-compose.yml            the two-instance deployment
 docker-compose.nobuild.yml    nginx, static only, no direct print
+unraid/label-printer.xml      Unraid Docker-tab template (LAN instance, :testing image)
+.github/workflows/docker.yml  tests, then build + push to ghcr.io
 nginx.conf                    used only by the nobuild variant
 web/index.html                image label page: crop, 1-bit conversion, ZPL
 web/image.js                  crop UI, scaling, threshold/dither, ZPL encoder

@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>label-printer</Name>
+  <Repository>ghcr.io/columbiagadgetworks/label-printer:testing</Repository>
+  <Registry>https://github.com/ColumbiaGadgetWorks/label-printer/pkgs/container/label-printer</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/ColumbiaGadgetWorks/label-printer</Support>
+  <Project>https://github.com/ColumbiaGadgetWorks/label-printer</Project>
+  <Overview>Label printer for Zebra GK420 / ZPL printers. Upload or paste an image (screenshot of a shipping label, barcode), crop it, convert it to 1-bit at the printer's 203 dpi and print it as raw ZPL through CUPS, with no driver resampling or dithering. Also has a text label composer.&#xD;
+&#xD;
+This is the LAN instance: never port-forward it or put it behind a reverse proxy. Set PRINT_ALLOW_CIDRS to your LAN subnet only.</Overview>
+  <Category>Tools: Productivity:</Category>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <TemplateURL/>
+  <Icon/>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>A CUPS server on the LAN with a queue for the Zebra, and cupsd listening on the network (Listen 0.0.0.0:631).</Requires>
+  <Config Name="WebUI port" Target="8080" Default="8089" Mode="tcp" Description="Port for the web UI on the Unraid host." Type="Port" Display="always" Required="true" Mask="false">8089</Config>
+  <Config Name="CUPS host" Target="CUPS_HOST" Default="" Mode="" Description="CUPS server address, optionally host:port (e.g. 192.168.1.50 or 192.168.1.50:631). Empty disables direct printing." Type="Variable" Display="always" Required="false" Mask="false">192.168.1.50</Config>
+  <Config Name="CUPS printer queue" Target="CUPS_PRINTER" Default="" Mode="" Description="Queue name exactly as 'lpstat -p' shows it on the CUPS server." Type="Variable" Display="always" Required="false" Mask="false">Zebra_GK420d</Config>
+  <Config Name="Allowed client networks" Target="PRINT_ALLOW_CIDRS" Default="192.168.1.0/24" Mode="" Description="Comma-separated CIDRs allowed to print, matched against the real client address. Your LAN subnet only. Do NOT include 172.16.0.0/12 (Docker bridge)." Type="Variable" Display="always" Required="true" Mask="false">192.168.1.0/24</Config>
+  <Config Name="Print token" Target="PRINT_TOKEN" Default="" Mode="" Description="Optional shared secret required in addition to the network check. Leave empty for none." Type="Variable" Display="always" Required="false" Mask="true"/>
+  <Config Name="Printer dpi" Target="PRINT_DPI" Default="203" Mode="" Description="203 for GK420d/t and ZD410; 300 for 300 dpi models." Type="Variable" Display="advanced" Required="false" Mask="false">203</Config>
+  <Config Name="lp options for image labels (ZPL)" Target="CUPS_RAW_OPTIONS" Default="-o raw" Mode="" Description="Passed to lp for image labels. -o raw sends the ZPL to the printer untouched." Type="Variable" Display="advanced" Required="false" Mask="false">-o raw</Config>
+  <Config Name="lp options for text labels (PNG)" Target="CUPS_OPTIONS" Default="-o media=Custom.4x6in -o scaling=100" Mode="" Description="Passed to lp for text labels, which are sent as PNG through the CUPS driver." Type="Variable" Display="advanced" Required="false" Mask="false">-o media=Custom.4x6in -o scaling=100</Config>
+  <Config Name="Trusted proxies" Target="TRUSTED_PROXIES" Default="" Mode="" Description="Leave EMPTY unless this container sits behind a reverse proxy. Addresses listed here may declare the client address via X-Forwarded-For." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Rate limit" Target="PRINT_RATE_LIMIT" Default="30" Mode="" Description="Print jobs per minute across all clients." Type="Variable" Display="advanced" Required="false" Mask="false">30</Config>
+  <Config Name="lp timeout" Target="LP_TIMEOUT" Default="25" Mode="" Description="Seconds to wait for lp to reach CUPS." Type="Variable" Display="advanced" Required="false" Mask="false">25</Config>
+</Container>
