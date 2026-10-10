@@ -7,17 +7,18 @@
 <title>Label Printer</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
+<style id="pageSize">@page{size:4in 6in;margin:0}</style>
 </head>
-<body>
+<body class="imgpage">
 
 <div class="app">
 
   <header class="hdr">
     <h1>Label Printer</h1>
-    <div class="modes" id="modes" role="tablist">
-      <button type="button" class="mode is-on" data-mode="single">4&#215;6 single</button>
-      <button type="button" class="mode" data-mode="triple">3 &#215; 2&#215;4 + cut marks</button>
-    </div>
+    <nav class="modes">
+      <a class="mode is-on" href="./">Image label</a>
+      <a class="mode" href="text.html">Text label</a>
+    </nav>
   </header>
 
   <main class="main">
@@ -25,120 +26,172 @@
     <section class="panel controls">
 
       <div class="group">
-        <label class="field">
-          <span class="lbl" id="lbl0">Label text</span>
-          <textarea id="t0" rows="4" placeholder="Type your label&#8230;" spellcheck="false"></textarea>
+        <div class="row-head">
+          <span class="lbl">1 · Image</span>
+          <span class="lbl" id="srcInfo"></span>
+        </div>
+        <label class="drop" id="drop">
+          <input type="file" id="file" accept="image/*" hidden>
+          <span><b>Choose an image</b>, drop one here, or paste a screenshot (Ctrl+V)</span>
         </label>
-        <label class="field only-triple">
-          <span class="lbl">Section 2 (middle)</span>
-          <textarea id="t1" rows="2" spellcheck="false"></textarea>
-        </label>
-        <label class="field only-triple">
-          <span class="lbl">Section 3 (bottom)</span>
-          <textarea id="t2" rows="2" spellcheck="false"></textarea>
-        </label>
-        <label class="chk only-triple">
-          <input type="checkbox" id="same"> <span>Repeat section 1 text in all three</span>
-        </label>
+      </div>
+
+      <div class="group" id="cropGroup" hidden>
+        <div class="row-head">
+          <span class="lbl">2 · Crop (drag on the image)</span>
+          <div class="toggles small">
+            <button type="button" class="tog" id="trim" title="Crop to the dark content, dropping white borders">Auto-trim</button>
+            <button type="button" class="tog" id="resetCrop">Reset</button>
+          </div>
+        </div>
+        <div class="cropwrap"><canvas id="cropView"></canvas></div>
       </div>
 
       <div class="group grid2">
         <label class="field">
-          <span class="lbl">Font</span>
-          <select id="font">
-            <option value="sans">Sans (Helvetica / Arial)</option>
-            <option value="cond">Condensed (fits more)</option>
-            <option value="wide">Wide (Verdana)</option>
-            <option value="serif">Serif (Georgia)</option>
-            <option value="mono">Mono (Consolas)</option>
+          <span class="lbl">Label size (width × length as fed)</span>
+          <select id="labelSize">
+            <option value="4x6">4 × 6 in</option>
+            <option value="4x4">4 × 4 in</option>
+            <option value="4x3">4 × 3 in</option>
+            <option value="4x2">4 × 2 in</option>
+            <option value="4x1">4 × 1 in</option>
+            <option value="3x2">3 × 2 in</option>
+            <option value="3x1">3 × 1 in</option>
+            <option value="2.25x1.25">2.25 × 1.25 in</option>
+            <option value="2x1">2 × 1 in</option>
+            <option value="1.5x1">1.5 × 1 in</option>
+            <option value="custom">Custom…</option>
           </select>
         </label>
         <div class="field">
-          <span class="lbl">Align</span>
-          <div class="seg" id="align">
-            <button type="button" data-align="left" title="Left">&#8676;</button>
-            <button type="button" data-align="center" class="is-on" title="Centre">&#8596;</button>
-            <button type="button" data-align="right" title="Right">&#8677;</button>
+          <span class="lbl">Rotate</span>
+          <div class="seg">
+            <button type="button" id="rotL" title="Rotate left">&#8634;</button>
+            <button type="button" id="rotR" title="Rotate right">&#8635;</button>
           </div>
         </div>
       </div>
-
-      <div class="group">
-        <span class="lbl">Style</span>
-        <div class="toggles">
-          <button type="button" class="tog" id="bold"><b>B</b></button>
-          <button type="button" class="tog" id="under"><u>U</u></button>
-          <button type="button" class="tog" id="caps">CAPS</button>
-          <button type="button" class="tog is-on" id="wrap">Wrap</button>
-        </div>
+      <div class="group grid2" id="customRow" hidden>
+        <label class="field"><span class="lbl">Width (in)</span>
+          <input type="number" id="cw" min="0.5" max="4.09" step="0.01" value="4"></label>
+        <label class="field"><span class="lbl">Length (in)</span>
+          <input type="number" id="ch" min="0.25" max="12" step="0.01" value="6"></label>
       </div>
 
       <div class="group">
-        <div class="row-head">
-          <span class="lbl">Text size</span>
-          <label class="chk inline"><input type="checkbox" id="auto" checked> <span>Auto&#8209;fit</span></label>
+        <span class="lbl">Scaling</span>
+        <div class="seg wide" id="fit">
+          <button type="button" data-fit="integer" title="Whole-number scale with hard pixel edges. Every bar stays the same width.">Barcode-safe</button>
+          <button type="button" data-fit="fit" title="Fill the label as much as possible">Fit label</button>
+          <button type="button" data-fit="custom">Custom %</button>
+        </div>
+        <div class="sizerow" id="pctRow" hidden>
+          <input type="range" id="pct" min="10" max="800" step="1" value="100">
+          <output id="pctOut" class="sizeout">100%</output>
+        </div>
+        <label class="chk" id="smoothRow"><input type="checkbox" id="smooth"> <span>Smooth edges (recovers bar edges from blurry or display-scaled screenshots)</span></label>
+      </div>
+
+      <div class="group">
+        <span class="lbl">Black &amp; white conversion</span>
+        <div class="seg wide two" id="bw">
+          <button type="button" data-bw="threshold" title="Each dot is black or white by brightness. Best for barcodes, text and line art.">Threshold</button>
+          <button type="button" data-bw="dither" title="Error diffusion. Only for photos; it ruins barcodes.">Dither (photos)</button>
         </div>
         <div class="sizerow">
-          <input type="range" id="size" min="6" max="140" step="1" value="36" disabled>
-          <output id="sizeOut" class="sizeout">auto</output>
+          <input type="range" id="thr" min="1" max="254" step="1" value="128">
+          <output id="thrOut" class="sizeout">128</output>
         </div>
-        <label class="chk only-triple"><input type="checkbox" id="match" checked> <span>Match text size across sections</span></label>
+        <label class="chk"><input type="checkbox" id="invert"> <span>Invert</span></label>
       </div>
 
-      <div class="group">
-        <span class="lbl">Edge padding</span>
-        <div class="seg wide" id="pad">
-          <button type="button" data-pad="0.06in">Tight</button>
-          <button type="button" data-pad="0.14in" class="is-on">Normal</button>
-          <button type="button" data-pad="0.28in">Roomy</button>
-        </div>
+      <div class="group grid3">
+        <label class="field"><span class="lbl">Margin</span>
+          <select id="margin">
+            <option value="0">None</option>
+            <option value="0.05">0.05 in</option>
+            <option value="0.1">0.1 in</option>
+            <option value="0.2">0.2 in</option>
+          </select></label>
+        <label class="field"><span class="lbl">Position</span>
+          <select id="align">
+            <option value="center">Centre</option>
+            <option value="top">Top</option>
+            <option value="topleft">Top left</option>
+          </select></label>
+        <label class="field"><span class="lbl">Copies</span>
+          <input type="number" id="copies" min="1" max="20" step="1" value="1"></label>
       </div>
 
-      <div class="group actions">
-        <button type="button" id="clear" class="ghost">Clear text</button>
-      </div>
+      <details class="group more">
+        <summary class="lbl">Printer settings (direct print / ZPL only)</summary>
+        <div class="grid3">
+          <label class="field"><span class="lbl">Darkness</span>
+            <select id="dark">
+              <option value="">Printer default</option>
+              <option value="-6">−6 lighter</option>
+              <option value="-3">−3</option>
+              <option value="3">+3</option>
+              <option value="6">+6</option>
+              <option value="10">+10 darker</option>
+            </select></label>
+          <label class="field"><span class="lbl">Speed</span>
+            <select id="speed">
+              <option value="">Printer default</option>
+              <option value="2">2 in/s (sharpest)</option>
+              <option value="3">3 in/s</option>
+              <option value="4">4 in/s</option>
+              <option value="5">5 in/s</option>
+            </select></label>
+          <label class="field"><span class="lbl">Printer dpi</span>
+            <select id="dpi">
+              <option value="203">203 (GK420)</option>
+              <option value="300">300</option>
+            </select></label>
+        </div>
+        <p class="note">Slower speed and a little extra darkness give the crispest bars.
+          These ride along in the ZPL job and do not change the printer's saved settings.</p>
+      </details>
     </section>
 
     <section class="panel preview">
-      <div class="stage" id="stage">
-        <div class="stage-inner" id="stageInner">
-
-          <div id="label" class="label" data-mode="single">
-            <div class="cell" data-i="0"><div class="txt"><span class="inner"></span></div></div>
-            <div class="cell" data-i="1"><div class="txt"><span class="inner"></span></div></div>
-            <div class="cell" data-i="2"><div class="txt"><span class="inner"></span></div></div>
-
-            <div class="guides screen-only" aria-hidden="true">
-              <i class="guide" style="top:2in"></i>
-              <i class="guide" style="top:4in"></i>
-            </div>
-            <div class="marks" aria-hidden="true">
-              <i class="mk" style="top:2in;left:0"></i>
-              <i class="mk" style="top:2in;right:0"></i>
-              <i class="mk" style="top:4in;left:0"></i>
-              <i class="mk" style="top:4in;right:0"></i>
-            </div>
-          </div>
-
+      <div class="row-head full">
+        <span class="lbl">Exactly what prints</span>
+        <div class="seg" id="zoom">
+          <button type="button" data-zoom="fit" class="is-on">Fit</button>
+          <button type="button" data-zoom="1">1:1</button>
+          <button type="button" data-zoom="3">3×</button>
         </div>
       </div>
-      <p class="cap" id="cap">4&#215;6&#8243; label &#183; actual size preview</p>
+      <div class="dotstage" id="dotStage">
+        <canvas id="out" class="dots"></canvas>
+        <p class="empty" id="empty">No image yet</p>
+      </div>
+      <p class="cap" id="cap"></p>
+      <p class="warn" id="warn" hidden></p>
     </section>
 
   </main>
 
   <footer class="foot">
     <div class="printrow">
-      <button type="button" id="direct" class="printbtn alt" hidden disabled>Direct print</button>
-      <button type="button" id="print" class="printbtn">Print</button>
+      <button type="button" id="direct" class="printbtn" hidden disabled>Print to Zebra</button>
+    </div>
+    <div class="printrow minor">
+      <button type="button" id="dlZpl" class="ghost">Download .zpl</button>
+      <button type="button" id="dlPng" class="ghost">Download 1-bit PNG</button>
+      <button type="button" id="print" class="ghost">Browser print</button>
     </div>
     <p class="status" id="status" role="status" hidden></p>
-    <p class="hint" id="hint">Opens your browser&#8217;s print dialog. Choose your Zebra there.
-      Set <b>Paper&nbsp;4&#215;6</b>, <b>Margins&nbsp;None</b>, <b>Scale&nbsp;100%</b>.</p>
+    <p class="hint" id="hint">Direct print sends ZPL straight to the Zebra, with no Windows or CUPS
+      driver in between to resample or dither it.</p>
   </footer>
 
 </div>
 
-<script src="app.js"></script>
+<img id="printImg" class="printimg" alt="">
+
+<script src="image.js"></script>
 </body>
 </html>

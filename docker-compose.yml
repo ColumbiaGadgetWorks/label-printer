@@ -24,7 +24,7 @@ services:
       - "8089:8080"
     environment:
       CUPS_HOST: "192.168.1.50"          # the Raspberry Pi running CUPS
-      CUPS_PRINTER: "Zebra_ZD410"        # queue name as CUPS knows it (lpstat -p)
+      CUPS_PRINTER: "Zebra_GK420d"       # queue name as CUPS knows it (lpstat -p)
 
       # Required. There is no permissive default. Set this to your LAN subnet
       # and nothing else. Do NOT include the Docker bridge range.
@@ -39,6 +39,7 @@ services:
       # permitted to declare who the client is via X-Forwarded-For.
       TRUSTED_PROXIES: ""
 
-      CUPS_OPTIONS: "-o media=Custom.4x6in -o scaling=100"
+      CUPS_OPTIONS: "-o media=Custom.4x6in -o scaling=100"   # text labels (PNG)
+      CUPS_RAW_OPTIONS: "-o raw"         # image labels: ZPL passed straight through
       PRINT_DPI: "203"                   # 203 for ZD410/GK420d; 300 for 300dpi models
     restart: unless-stopped

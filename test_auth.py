@@ -7,7 +7,7 @@ import time
 import urllib.error
 import urllib.request
 
-PROJ = r"C:\Users\Adam\.claude\projects\label-printer"
+PROJ = os.path.dirname(os.path.abspath(__file__))
 PORT = 8123
 BASE = "http://127.0.0.1:%d" % PORT
 PNG = bytes.fromhex("89504e470d0a1a0a") + b"\x00" * 64   # PNG magic + filler

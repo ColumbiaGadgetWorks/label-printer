@@ -1,7 +1,88 @@
 # Label Printer
 
-A tiny self-hosted web app for printing 4×6″ labels on a Zebra (or any ZPL-compatible)
-thermal printer. Type text, hit print, done. Works from a desktop or a phone.
+A small self-hosted web app for printing labels on a Zebra GK420 (or any
+ZPL-compatible) thermal printer, from a desktop or a phone.
+
+It has two pages:
+
+- **Image label** (the landing page). Upload or paste an image, such as a
+  screenshot of a shipping label or a barcode. Crop it, size it onto the label,
+  and print it **dot for dot** as ZPL.
+- **Text label** (`text.html`). Type text, hit print. More detail below.
+
+---
+
+## Image labels: why barcodes come out speckled, and what this does instead
+
+A GK420 has a 203 dpi print head, and every dot is either black or white.
+Printing a screenshot from Windows makes the driver solve two problems on the
+way:
+
+1. **Resampling.** A screenshot has no real size. The driver stretches it to
+   fit the page, by some factor like ×1.73. Bars that were all 2 px wide come
+   out 3, 4, 3, 3, 4 dots wide. Scanners measure bar *ratios*, so this is the
+   part that makes barcodes fail.
+2. **Halftoning.** Anti-aliased grey edges, and anything that is not pure
+   black, get dithered into a scatter of dots. That is the speckle you see.
+
+The image page does both steps itself, in the browser, before anything reaches
+a driver:
+
+- **Barcode-safe scaling** (the default) uses only whole-number scale factors.
+  At ×3, every source pixel becomes exactly 3×3 dots, so a barcode keeps its
+  bar-width ratios exactly. **Fit label** fills the label instead, for images
+  where that does not matter.
+- **Smooth edges** (on by default). If the screenshot was taken at 125% or 150%
+  Windows display scaling, its bars already have grey, fractional edges. Smoothing
+  before the threshold puts each edge where the grey says it was. In testing this
+  halved the bar-width error against plain nearest-neighbour scaling. On a clean
+  screenshot the two give identical output.
+- **Threshold**, not dither. Every dot is black or white by brightness, with a
+  slider to set the cut-off. Dither is still available for photos, with a warning.
+- **The preview is the print.** It shows the actual 1-bit dot grid (zoom 1:1 or
+  3× to inspect bars), so there is no surprise at the printer.
+- **Direct print sends ZPL, not a picture.** The server wraps the dots in a ZPL
+  `^GFA` graphic and submits it to CUPS with `-o raw`. No CUPS filter or Windows
+  driver touches the image. Optional print speed and darkness ride along in the
+  job (`^PR`, `^MD`). Slower printing (2 in/s) gives the crispest bars, and
+  neither setting is saved to the printer.
+
+Other controls: **Auto-trim** crops to the dark content, which drops screenshot
+borders and window chrome. You can also rotate, pick a label size (presets or
+custom, capped at the 4.09″ head width), and set margin, position and copies.
+
+Three ways to get the result out:
+
+| | What it does | Works from |
+|---|---|---|
+| **Print to Zebra** | Sends the 1-bit bitmap to `/api/print-bitmap`. The server builds the ZPL and runs `lp -o raw` | LAN instance, allowed addresses only (same rules as below) |
+| **Download .zpl** | The same ZPL, built in the browser | Anywhere. Send it with Zebra Setup Utilities or `copy /b label.zpl \\pc\zebra-share` on Windows, or `lp -o raw label.zpl` |
+| **Download 1-bit PNG** / **Browser print** | An exact 203 dpi black-and-white image | Anywhere. Still far better than a screenshot, but a driver is back in the path, so print at 100% scale with no fit-to-page |
+
+### The bitmap endpoint never accepts ZPL
+
+`/api/print-bitmap` takes raw packed pixels (1 bit per dot, rows padded to a
+byte) plus `X-Width` / `X-Height` headers. The server checks the size against
+the print head and generates the ZPL itself. A client can therefore only ever
+send pixels. It cannot send printer commands, which could otherwise rewrite and
+save the printer's configuration. The endpoint goes through the same network,
+token and rate-limit checks as `/api/print`.
+
+### CUPS queue for a GK420
+
+Either queue type works with `-o raw`:
+
+- the CUPS **Zebra ZPL Label Printer** driver (`lpadmin -p Zebra_GK420d -E -v usb://Zebra%20Technologies/ZTC%20GK420d -m drv:///sample.drv/zebra.ppd`), or
+- a raw queue (`-m raw`).
+
+`-o raw` makes CUPS skip its filters and pass the ZPL through. If your CUPS
+build refuses raw jobs, set `CUPS_RAW_OPTIONS` to whatever your queue needs.
+The printer must be in ZPL mode, which is the GK420d/t default; `~JSN` / EPL
+mode will print the ZPL as text.
+
+---
+
+## Text labels
 
 Two layouts:
 
@@ -166,7 +247,10 @@ Anything that can reach port 631 can now print, so keep it on the LAN.
 | `PRINT_TOKEN` | Optional shared secret, required in addition to the network check. | empty |
 | `TRUSTED_PROXIES` | CIDRs whose `X-Forwarded-For` / `CF-Connecting-IP` will be believed. Leave empty unless proxied. | empty |
 | `CUPS_OPTIONS` | Passed through to `lp`. | `-o media=Custom.4x6in -o scaling=100` |
+| `CUPS_RAW_OPTIONS` | Passed to `lp` for image labels (ZPL jobs). | `-o raw` |
 | `PRINT_DPI` | Raster resolution. 203 for ZD410/GK420d, 300 for 300dpi models. | `203` |
+| `PRINT_MAX_WIDTH_DOTS` | Widest bitmap accepted. Default is 4.1″ at `PRINT_DPI` (832 dots, the GK420 head). | `832` |
+| `PRINT_MAX_LENGTH_DOTS` | Longest bitmap accepted. | 12″ at `PRINT_DPI` |
 | `PRINT_RATE_LIMIT` | Jobs per minute across all clients. | `30` |
 | `LP_TIMEOUT` | Seconds to wait for `lp`. | `25` |
 | `PORT` | Listen port inside the container. | `8080` |
@@ -201,15 +285,18 @@ on screen are editing guides and are never printed.
 ## Files
 
 ```
-server.py                     static serving + /api/capabilities + /api/print
+server.py                     static serving + /api/capabilities + /api/print + /api/print-bitmap (ZPL)
 test_auth.py                  authorisation test suite (see below)
+test_zpl.py                   ZPL encoder round-trip + /api/print-bitmap end to end with a fake lp
 Dockerfile                    python:alpine + cups-client
 docker-compose.yml            the two-instance deployment
 docker-compose.nobuild.yml    nginx, static only, no direct print
 nginx.conf                    used only by the nobuild variant
-web/index.html                the UI
+web/index.html                image label page: crop, 1-bit conversion, ZPL
+web/image.js                  crop UI, scaling, threshold/dither, ZPL encoder
+web/text.html                 text label page
 web/style.css                 styling, and the @media print rules that matter
-web/app.js                    auto-fit, rasteriser, state persistence
+web/app.js                    text page: auto-fit, rasteriser, state persistence
 ```
 
 Two parts are worth understanding:
@@ -239,6 +326,16 @@ refused, that the queue name is not disclosed to unauthorised callers, and that
 the default allowlist admits neither a LAN nor a Docker-bridge address until you
 opt it in. 21 checks, no dependencies.
 
+```bash
+python test_zpl.py
+```
+
+Encodes random and real-world bitmaps to compressed ZPL and decodes them back
+with an independent decoder, checking that every dot survives. It then posts a
+bitmap to a live server with a fake `lp` on `PATH`, and checks that the job file
+is raw ZPL, carries copies, darkness and speed, and decodes to the exact bitmap
+that was sent.
+
 ---
 
 ## Troubleshooting
@@ -263,6 +360,14 @@ was built without `cups-client`.
 **Label prints on two pages.** Margins are not None, or Scale is not 100%. The
 page box has zero slack at 4×6.
 
+**Image label prints as ZPL text, or nothing happens.** The printer is in EPL
+mode or the queue is filtering the job. Check that `CUPS_RAW_OPTIONS` is `-o raw`
+and that the GK420 is a "d"/"t" model in ZPL mode.
+
+**Image label barcode will not scan.** Use Barcode-safe scaling and Threshold,
+try Speed 2 and Darkness +3, and check the 3× preview. If bars in the preview
+are already uneven, the source screenshot is too small; capture it larger.
+
 **Direct print output is the wrong size.** Tune `CUPS_OPTIONS`, and check
 `PRINT_DPI` matches your printer (203 vs 300).
 
@@ -278,6 +383,14 @@ page box has zero slack at 4×6.
 - Direct printing has never been exercised against a real CUPS server or a real
   Zebra. The authorisation layer is tested; the `lp` invocation and the
   `CUPS_OPTIONS` defaults are informed guesses, which is why they are env-tunable.
-- Raster output is anti-aliased greyscale and left for CUPS to halftone. If text
-  looks muddy on a thermal head, thresholding to pure black and white in
-  `rasterize` is the knob to reach for.
+- Text-page raster output is anti-aliased greyscale and left for CUPS to halftone.
+  If text looks muddy on a thermal head, thresholding to pure black and white in
+  `rasterize` is the knob to reach for. (The image page already does this.)
+- The image page's ZPL has been checked against an independent decoder and
+  against the ZPL manual's `^GFA` compression rules, but not yet on a physical
+  GK420. If a label prints garbled, try **Download .zpl** and paste it into
+  labelary.com's viewer to see whether the ZPL or the transport is at fault.
+- **Barcode-safe** cannot invent detail that a screenshot never had. If the
+  barcode's narrowest bar is 1 px in the screenshot, zoom in in the source app
+  first (or export the label as PDF/PNG at a larger size). A larger source gives
+  more dots per bar, and that matters more than anything else here.

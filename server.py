@@ -51,7 +51,13 @@ PORT = int(os.environ.get("PORT", "8080"))
 CUPS_HOST = os.environ.get("CUPS_HOST", "").strip()
 CUPS_PRINTER = os.environ.get("CUPS_PRINTER", "").strip()
 CUPS_OPTIONS = os.environ.get("CUPS_OPTIONS", "-o media=Custom.4x6in -o scaling=100")
+# Options for the image path. The job is already ZPL, so CUPS must pass it
+# through untouched: any filter in between is exactly what dithers barcodes.
+CUPS_RAW_OPTIONS = os.environ.get("CUPS_RAW_OPTIONS", "-o raw")
 PRINT_DPI = int(os.environ.get("PRINT_DPI", "203"))
+# GK420d/t print head is 4.09in wide (832 dots at 203dpi). Wider bitmaps are refused.
+MAX_WIDTH_DOTS = int(os.environ.get("PRINT_MAX_WIDTH_DOTS", str(int(4.1 * PRINT_DPI))))
+MAX_LENGTH_DOTS = int(os.environ.get("PRINT_MAX_LENGTH_DOTS", str(12 * PRINT_DPI)))
 
 PRINT_TOKEN = os.environ.get("PRINT_TOKEN", "").strip()
 # Fail closed. A permissive RFC1918 default would be actively dangerous behind
@@ -172,16 +178,88 @@ def rate_ok():
     return True
 
 
-def send_to_cups(png_bytes, copies, title):
+# ---------- ZPL ----------
+# ZPL's ASCII hex compression: a run of one hex digit is prefixed by a count,
+# G..Y = 1..19 and g..z = 20..400 (multiples of 20). Per row, "," means the
+# rest of the row is 0, "!" the rest is F, and ":" repeats the previous row.
+# A mostly-white 4x6 label shrinks from ~250 KB of hex to a few KB.
+
+def _run(ch, n):
+    out = []
+    while n > 0:
+        take = min(n, 419)                         # z (400) + Y (19)
+        prefix = ""
+        if take >= 20:
+            prefix += chr(ord("g") + take // 20 - 1)
+        if take % 20 and take > 1:
+            prefix += chr(ord("G") + take % 20 - 1)
+        out.append(prefix + ch)
+        n -= take
+    return "".join(out)
+
+
+def _row(hexrow):
+    if hexrow.strip("0") == "":
+        return ","
+    if hexrow.strip("F") == "":
+        return "!"
+    body = hexrow.rstrip("0")
+    tail = "," if len(body) < len(hexrow) else ""
+    out, i = [], 0
+    while i < len(body):
+        j = i
+        while j < len(body) and body[j] == body[i]:
+            j += 1
+        out.append(_run(body[i], j - i))
+        i = j
+    return "".join(out) + tail
+
+
+def bitmap_to_zpl(bits, width, height, copies=1, darkness=None, speed=None):
+    """Wrap a packed 1-bit bitmap (MSB first, 1 = black, rows padded to whole
+    bytes) as a complete ZPL label placed at the top-left dot."""
+    stride = (width + 7) // 8
+    total = stride * height
+    hexdata = bits.hex().upper()
+    rows, prev = [], None
+    for y in range(height):
+        r = hexdata[y * stride * 2:(y + 1) * stride * 2]
+        rows.append(":" if r == prev else _row(r))
+        prev = r
+
+    head = ["^XA", "^PW%d" % width, "^LL%d" % height, "^LH0,0"]
+    if speed is not None:
+        head.append("^PR%d,%d,%d" % (speed, speed, speed))
+    if darkness is not None:
+        head.append("^MD%d" % darkness)
+    return ("".join(head)
+            + "^FO0,0^GFA,%d,%d,%d,%s^FS" % (total, total, stride, "".join(rows))
+            + "^PQ%d^XZ\n" % copies).encode("ascii")
+
+
+def _int_header(handler, name, lo, hi):
+    raw = handler.headers.get(name)
+    if raw is None or raw == "":
+        return None
+    try:
+        v = int(raw)
+    except ValueError:
+        raise ValueError(name)
+    if not lo <= v <= hi:
+        raise ValueError(name)
+    return v
+
+
+def send_to_cups(data, copies, title, options=None, suffix=".png"):
     path = None
     try:
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as fh:
-            fh.write(png_bytes)
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as fh:
+            fh.write(data)
             path = fh.name
 
         cmd = ["lp", "-h", CUPS_HOST, "-d", CUPS_PRINTER,
                "-n", str(copies), "-t", title]
-        cmd += shlex.split(CUPS_OPTIONS)
+        cmd += shlex.split(CUPS_OPTIONS if options is None else options)
         cmd.append(path)
 
         LOG.info("lp: %s", " ".join(shlex.quote(c) for c in cmd))
@@ -241,6 +319,8 @@ class Handler(SimpleHTTPRequestHandler):
                 "configured": CONFIGURED,
                 "reason": reason,
                 "dpi": PRINT_DPI,
+                "maxWidthDots": MAX_WIDTH_DOTS,
+                "maxLengthDots": MAX_LENGTH_DOTS,
                 "tokenRequired": bool(PRINT_TOKEN),
             }
             # Only disclose the queue name to a caller already cleared to use it.
@@ -256,7 +336,8 @@ class Handler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):
-        if self.path.split("?")[0] != "/api/print":
+        route = self.path.split("?")[0]
+        if route not in ("/api/print", "/api/print-bitmap"):
             self.send_error(404)
             return
 
@@ -280,6 +361,10 @@ class Handler(SimpleHTTPRequestHandler):
             return
 
         body = self.rfile.read(length)
+        if route == "/api/print-bitmap":
+            self._print_bitmap(body)
+            return
+
         if not body.startswith(b"\x89PNG\r\n\x1a\n"):
             self._json(415, {"ok": False, "error": "expected-png"})
             return
@@ -292,6 +377,37 @@ class Handler(SimpleHTTPRequestHandler):
         LOG.info("print accepted from %s (%d bytes, %d copies)",
                  self.client_address[0], len(body), copies)
         sent, detail = send_to_cups(body, copies, "label")
+        if sent:
+            self._json(200, {"ok": True, "detail": detail})
+        else:
+            LOG.error("cups error: %s", detail)
+            self._json(502, {"ok": False, "error": "cups-failed", "detail": detail})
+
+    def _print_bitmap(self, body):
+        """Packed 1-bit bitmap in, ZPL out. The server builds the ZPL itself so
+        a client can only ever send pixels, never printer commands (which
+        could otherwise rewrite and save the printer's configuration)."""
+        try:
+            width = _int_header(self, "X-Width", 1, MAX_WIDTH_DOTS)
+            height = _int_header(self, "X-Height", 1, MAX_LENGTH_DOTS)
+            copies = _int_header(self, "X-Copies", 1, 20) or 1
+            darkness = _int_header(self, "X-Darkness", -30, 30)
+            speed = _int_header(self, "X-Speed", 1, 14)
+        except ValueError as exc:
+            self._json(400, {"ok": False, "error": "bad-param", "detail": str(exc)})
+            return
+        if width is None or height is None:
+            self._json(400, {"ok": False, "error": "bad-param", "detail": "X-Width/X-Height"})
+            return
+        if len(body) != ((width + 7) // 8) * height:
+            self._json(400, {"ok": False, "error": "bad-bitmap-size"})
+            return
+
+        zpl = bitmap_to_zpl(body, width, height, copies, darkness, speed)
+        LOG.info("bitmap print accepted from %s (%dx%d dots, %d bytes ZPL, %d copies)",
+                 self.client_address[0], width, height, len(zpl), copies)
+        # copies are in the ZPL (^PQ), so lp gets -n 1
+        sent, detail = send_to_cups(zpl, 1, "label", CUPS_RAW_OPTIONS, ".zpl")
         if sent:
             self._json(200, {"ok": True, "detail": detail})
         else:
