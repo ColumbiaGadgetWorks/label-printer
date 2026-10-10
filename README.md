@@ -213,21 +213,11 @@ and pushes it to GitHub Container Registry:
 
 `unraid/label-printer.xml` is a Docker-tab template pointing at `:testing`.
 
-The repository is private, so two things need a GitHub token. Create a classic
-personal access token with the **repo** and **read:packages** scopes. Then, in
-the Unraid terminal:
+In the Unraid terminal:
 
 ```bash
-GH_TOKEN=ghp_yourtoken
-GH_USER=your-github-username
-
-# 1. fetch the template into Unraid's user templates
-wget --header="Authorization: token $GH_TOKEN" \
-  -O /boot/config/plugins/dockerMan/templates-user/my-label-printer.xml \
+wget -O /boot/config/plugins/dockerMan/templates-user/my-label-printer.xml \
   https://raw.githubusercontent.com/ColumbiaGadgetWorks/label-printer/claude/serene-knuth-dw0n54/unraid/label-printer.xml
-
-# 2. let Docker pull the private image
-echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_USER" --password-stdin
 ```
 
 Then go to **Docker → Add Container**, pick **label-printer** from the Template
@@ -236,10 +226,11 @@ Apply. Open `http://<unraid-ip>:8089`.
 
 Notes:
 
-- Skip step 2 if you make the package public under GitHub → Packages →
-  label-printer → Package settings. The image contains no secrets.
-- Unraid keeps `/root` in RAM, so the `docker login` is forgotten after a reboot.
-  That matters only when you pull an update; the running container is unaffected.
+- The image package must be public (GitHub → Packages → label-printer →
+  Package settings → Change visibility). GitHub creates packages as private
+  even when the repository is public. Otherwise Unraid's pull fails with
+  "denied", unless you first run `docker login ghcr.io` with a token that has
+  `read:packages`.
 - To update after a new push, use **Check for updates / force update** on the
   container.
 - Open the UI from another device, not from a browser on the Unraid host
