@@ -197,6 +197,7 @@ input[type=number]{
 select:disabled{opacity:.6}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end}
 .seg.wide.two{grid-template-columns:repeat(2,1fr)}
+.toggles.checks{gap:18px}
 .toggles.small .tog{padding:5px 10px;font-size:12px;min-width:0}
 
 .drop{

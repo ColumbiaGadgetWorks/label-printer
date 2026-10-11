@@ -284,6 +284,14 @@ def send_to_cups(data, copies, title, options=None, suffix=".png"):
 
 class Handler(SimpleHTTPRequestHandler):
     server_version = "labelprinter"
+    # pdf.js is an ES module: browsers refuse it unless served as JavaScript,
+    # and older Pythons / bare containers do not all map these extensions.
+    extensions_map = dict(SimpleHTTPRequestHandler.extensions_map, **{
+        ".mjs": "text/javascript",
+        ".wasm": "application/wasm",
+        ".pfb": "application/octet-stream",
+        ".ttf": "font/ttf",
+    })
 
     def _json(self, code, payload):
         body = json.dumps(payload).encode()

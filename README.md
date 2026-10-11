@@ -6,7 +6,7 @@ ZPL-compatible) thermal printer, from a desktop or a phone.
 It has two pages:
 
 - **Image label** (the landing page). Upload or paste an image, such as a
-  screenshot of a shipping label or a barcode. Crop it, size it onto the label,
+  screenshot of a shipping label or a barcode, or upload a PDF. Crop it, size it onto the label,
   and print it **dot for dot** as ZPL.
 - **Text label** (`text.html`). Type text, hit print. More detail below.
 
@@ -48,8 +48,24 @@ a driver:
   job (`^PR`, `^MD`). Slower printing (2 in/s) gives the crispest bars, and
   neither setting is saved to the printer.
 
-Other controls: **Auto-trim** crops to the dark content, which drops screenshot
-borders and window chrome. You can also rotate, pick a label size (presets or
+- **PDFs are re-rendered, not resampled.** A shipping-label PDF holds its barcode
+  as shapes, not pixels. The page draws the cropped part of the PDF straight onto
+  the printer's dot grid at the exact print size, so even Fit label's
+  uneven scales give bars within one dot of true. This is the best-quality input
+  you can give it: use the carrier's PDF instead of a screenshot whenever there
+  is one. Multi-page PDFs get a page picker. pdf.js is bundled (`web/vendor/pdfjs`)
+  and loads only when a PDF is opened, so it works with no internet access.
+
+On load, **Auto-trim** crops to the dark content, dropping screenshot borders,
+window chrome and PDF page margins. **Auto-rotate** then turns the image a
+quarter turn if that lets it print larger, which is the usual case for a
+landscape label on a portrait 4×6 roll. Both are checkboxes and on by default.
+Rotating by hand turns auto-rotate off for that image. With auto-rotate on,
+changing the label size or margin re-checks the orientation.
+
+Other controls: the **Auto-trim** button re-trims whatever the crop box currently
+holds. That is useful on a letter-size PDF: draw a rough box around the label
+quadrant and click it to snap to the label edge. You can also rotate, pick a label size (presets or
 custom, capped at the 4.09″ head width), and set margin, position and copies.
 
 Three ways to get the result out:
@@ -332,7 +348,8 @@ unraid/icon.svg, icon.png     container icon (PNG rendered from the SVG, 512×51
 .github/workflows/docker.yml  tests, then build + push to ghcr.io
 nginx.conf                    used only by the nobuild variant
 web/index.html                image label page: crop, 1-bit conversion, ZPL
-web/image.js                  crop UI, scaling, threshold/dither, ZPL encoder
+web/image.js                  crop UI, PDF loading, auto-trim/rotate, scaling, threshold/dither, ZPL encoder
+web/vendor/pdfjs/             pdf.js 6.3.289 legacy build, unmodified (Apache-2.0; see VERSION)
 web/text.html                 text label page
 web/favicon.svg, *.png         favicon (SVG, 32px PNG, 180px apple-touch-icon)
 web/style.css                 styling, and the @media print rules that matter
@@ -430,6 +447,11 @@ are already uneven, the source screenshot is too small; capture it larger.
   against the ZPL manual's `^GFA` compression rules, but not yet on a physical
   GK420. If a label prints garbled, try **Download .zpl** and paste it into
   labelary.com's viewer to see whether the ZPL or the transport is at fault.
+- PDF loading has been tested in Chromium with hand-made vector PDFs (letter
+  page with a label quadrant, and a 4×6 page, both with non-embedded Helvetica).
+  It has not yet been tried with real carrier PDFs, which sometimes embed the
+  whole label as one image. Those still work, but print like any other image
+  rather than getting the vector re-render.
 - **Barcode-safe** cannot invent detail that a screenshot never had. If the
   barcode's narrowest bar is 1 px in the screenshot, zoom in in the source app
   first (or export the label as PDF/PNG at a larger size). A larger source gives

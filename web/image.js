@@ -19,7 +19,7 @@
     size: '4x6', cw: 4, ch: 6, rot: 0,
     fit: 'fit', pct: 100, smooth: true,
     bw: 'threshold', thr: 128, invert: false,
-    margin: '0.05', align: 'center', copies: 1,
+    margin: '0.05', align: 'center', copies: 1, autoTrim: true, autoRotate: true,
     dark: '', speed: '', dpi: 203, zoom: 'fit'
   };
   var S = Object.assign({}, DEF);
@@ -38,6 +38,8 @@
 
   var src = null;              // canvas holding the original image, composited on white
   var crop = null;             // {x, y, w, h} in source pixels
+  var pdf = null;              // {doc, page, n, scale0} when the source is a PDF page
+  var manualRot = false;       // the user rotated this source themselves: leave it alone
   var result = null;           // {w, h, bits: Uint8Array(w*h) 1 = black, k}
 
   /* ---------- label geometry ---------- */
@@ -57,26 +59,141 @@
   }
 
   /* ---------- loading ---------- */
+  function isPdf(blob) {
+    return blob.type === 'application/pdf' || /\.pdf$/i.test(blob.name || '');
+  }
+
   function load(blob) {
-    if (!blob || !/^image\//.test(blob.type)) { setStatus('That is not an image.', 'err'); return; }
+    if (!blob) return;
+    if (isPdf(blob)) { loadPdf(blob); return; }
+    if (!/^image\//.test(blob.type)) { setStatus('That is not an image or PDF.', 'err'); return; }
     var url = URL.createObjectURL(blob);
     var img = new Image();
     img.onload = function () {
       var c = document.createElement('canvas');
       c.width = img.naturalWidth; c.height = img.naturalHeight;
-      var g = c.getContext('2d');
+      var g = c.getContext('2d', { willReadFrequently: true });   // auto-trim reads it back
       g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);   // transparency prints as white
       g.drawImage(img, 0, 0);
       URL.revokeObjectURL(url);
-      src = c;
-      crop = { x: 0, y: 0, w: c.width, h: c.height };
-      $('#srcInfo').textContent = c.width + ' × ' + c.height + ' px';
-      $('#cropGroup').hidden = false;
-      setStatus('', '');
-      drawCrop(); render();
+      closePdf();
+      setSource(c, c.width + ' × ' + c.height + ' px', null);
     };
     img.onerror = function () { URL.revokeObjectURL(url); setStatus('Could not read that image.', 'err'); };
     img.src = url;
+  }
+
+  function setSource(canvas, info, pdfInfo) {
+    src = canvas;
+    pdf = pdfInfo;
+    hiRes = null;
+    crop = { x: 0, y: 0, w: canvas.width, h: canvas.height };
+    manualRot = false;
+    if (S.autoTrim) { var t = trimBox(); if (t) crop = t; }
+    if (S.autoRotate) autoRotate();
+    $('#srcInfo').textContent = info;
+    $('#cropGroup').hidden = false;
+    setStatus('', '');
+    drawCrop(); render();
+  }
+
+  /* ---------- PDF ----------
+     pdf.js is bundled (web/vendor/pdfjs) and only fetched when a PDF arrives.
+     A PDF holds shapes, not pixels, so instead of scaling a picture the page
+     is re-rendered at exactly the size it will print: every bar edge lands
+     on the dot grid with no resampling at all. */
+  var pdfjsLib = null, pdfDoc = null;
+  function pdfjs() {
+    if (!pdfjsLib) {
+      pdfjsLib = import('./vendor/pdfjs/pdf.min.mjs').then(function (m) {
+        m.GlobalWorkerOptions.workerSrc = new URL('vendor/pdfjs/pdf.worker.min.mjs', location.href).href;
+        return m;
+      });
+      pdfjsLib.catch(function () { pdfjsLib = null; });
+    }
+    return pdfjsLib;
+  }
+
+  function closePdf() {
+    if (pdfDoc) { pdfDoc.destroy(); pdfDoc = null; }
+    $('#pageRow').hidden = true;
+  }
+
+  function loadPdf(blob) {
+    setStatus('Opening PDF…', '');
+    Promise.all([pdfjs(), blob.arrayBuffer()]).then(function (r) {
+      return r[0].getDocument({
+        data: new Uint8Array(r[1]),
+        standardFontDataUrl: new URL('vendor/pdfjs/standard_fonts/', location.href).href,
+        wasmUrl: new URL('vendor/pdfjs/wasm/', location.href).href
+      }).promise;
+    }).then(function (doc) {
+      closePdf();
+      pdfDoc = doc;
+      var sel = $('#pdfPage');
+      sel.textContent = '';
+      for (var i = 1; i <= doc.numPages; i++) {
+        var o = document.createElement('option');
+        o.value = i; o.textContent = 'Page ' + i + ' of ' + doc.numPages;
+        sel.appendChild(o);
+      }
+      $('#pageRow').hidden = doc.numPages < 2;
+      return showPdfPage(1);
+    }).catch(function (e) {
+      setStatus('Could not open that PDF: ' + ((e && e.message) || e), 'err');
+    });
+  }
+
+  function showPdfPage(n) {
+    var doc = pdfDoc;
+    return doc.getPage(n).then(function (page) {
+      // preview / crop source at the printer's own resolution: 1 px = 1 dot at 100%
+      var scale0 = dpi() / 72;
+      var vp = page.getViewport({ scale: scale0 });
+      var c = document.createElement('canvas');
+      c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
+      var g = c.getContext('2d', { willReadFrequently: true });
+      g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+      return page.render({ canvasContext: g, viewport: vp, intent: 'print' }).promise.then(function () {
+        if (doc !== pdfDoc) return;                 // another file replaced it meanwhile
+        var inch = page.getViewport({ scale: 1 });
+        setSource(c, 'PDF' + (doc.numPages > 1 ? ' p' + n + '/' + doc.numPages : '') + ' · '
+          + (inch.width / 72).toFixed(2) + ' × ' + (inch.height / 72).toFixed(2) + ' in',
+          { page: page, n: n, scale0: scale0 });
+      });
+    });
+  }
+
+  $('#pdfPage').addEventListener('change', function () {
+    if (pdfDoc) showPdfPage(+this.value).catch(function (e) { setStatus('Could not render that page: ' + e, 'err'); });
+  });
+
+  /* The crop region re-rendered straight from the PDF at k dots per source
+     pixel. Cached by everything that affects it; while a new one renders,
+     the preview briefly uses the scaled-up source instead. */
+  var hiRes = null, hiResJob = null;
+  function pdfCanvas(k) {
+    var key = [pdf.n, crop.x, crop.y, crop.w, crop.h, k].join(',');
+    if (hiRes && hiRes.key === key) return hiRes.canvas;
+    if (hiResJob && hiResJob.key === key) return null;
+    if (hiResJob) hiResJob.task.cancel();
+
+    var w = Math.max(1, Math.round(crop.w * k)), h = Math.max(1, Math.round(crop.h * k));
+    if (w * h > 40e6) return null;                  // absurd custom % : keep the preview
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);
+    var vp = pdf.page.getViewport({ scale: pdf.scale0 * k, offsetX: -crop.x * k, offsetY: -crop.y * k });
+    var task = pdf.page.render({ canvasContext: g, viewport: vp, intent: 'print' });
+    var job = hiResJob = { key: key, task: task };
+    task.promise.then(function () {
+      if (hiResJob !== job) return;
+      hiResJob = null;
+      hiRes = { key: key, canvas: c };
+      render();
+    }, function () { if (hiResJob === job) hiResJob = null; });
+    return null;
   }
 
   $('#file').addEventListener('change', function () { if (this.files[0]) load(this.files[0]); this.value = ''; });
@@ -95,7 +212,7 @@
   document.addEventListener('paste', function (e) {
     var items = (e.clipboardData && e.clipboardData.items) || [];
     for (var i = 0; i < items.length; i++) {
-      if (items[i].kind === 'file' && /^image\//.test(items[i].type)) {
+      if (items[i].kind === 'file' && (/^image\//.test(items[i].type) || items[i].type === 'application/pdf')) {
         e.preventDefault(); load(items[i].getAsFile()); return;
       }
     }
@@ -220,8 +337,7 @@
 
   /* Shrink the crop to the bounding box of everything darker than the
      threshold. Screenshots nearly always carry white borders and UI chrome. */
-  $('#trim').addEventListener('click', function () {
-    if (!src) return;
+  function trimBox() {
     var d = src.getContext('2d').getImageData(crop.x, crop.y, crop.w, crop.h).data;
     var x0 = crop.w, y0 = crop.h, x1 = -1, y1 = -1, thr = S.thr;
     for (var y = 0; y < crop.h; y++) {
@@ -233,22 +349,39 @@
         }
       }
     }
-    if (x1 < 0) { setStatus('Nothing dark enough to trim to.', 'err'); return; }
-    crop = clampCrop({ x: crop.x + x0, y: crop.y + y0, w: x1 - x0 + 1, h: y1 - y0 + 1 });
+    if (x1 < 0) return null;
+    return clampCrop({ x: crop.x + x0, y: crop.y + y0, w: x1 - x0 + 1, h: y1 - y0 + 1 });
+  }
+
+  $('#trim').addEventListener('click', function () {
+    if (!src) return;
+    var t = trimBox();
+    if (!t) { setStatus('Nothing dark enough to trim to.', 'err'); return; }
+    crop = t;
+    if (S.autoRotate && !manualRot) autoRotate();
     drawCrop(); render();
   });
 
+  /* Upright or a quarter turn, whichever lets the crop print larger.
+     A landscape shipping label on a portrait 4x6 roll is the usual case. */
+  function autoRotate() {
+    var L = labelDots(), m = Math.round((+S.margin || 0) * dpi());
+    var aw = Math.max(1, L.w - 2 * m), ah = Math.max(1, L.h - 2 * m);
+    var up = Math.min(aw / crop.w, ah / crop.h), turned = Math.min(aw / crop.h, ah / crop.w);
+    S.rot = turned > up * 1.02 ? 90 : 0;
+  }
+
   /* ---------- pipeline: crop -> rotate -> scale onto dot grid -> 1-bit ---------- */
-  function rotated() {
+  function rotated(img, r) {
     var c = document.createElement('canvas');
     var q = ((S.rot % 360) + 360) % 360;
     var swap = q === 90 || q === 270;
-    c.width = swap ? crop.h : crop.w;
-    c.height = swap ? crop.w : crop.h;
+    c.width = swap ? r.h : r.w;
+    c.height = swap ? r.w : r.h;
     var g = c.getContext('2d');
     g.translate(c.width / 2, c.height / 2);
     g.rotate(q * Math.PI / 180);
-    g.drawImage(src, crop.x, crop.y, crop.w, crop.h, -crop.w / 2, -crop.h / 2, crop.w, crop.h);
+    g.drawImage(img, r.x, r.y, r.w, r.h, -r.w / 2, -r.h / 2, r.w, r.h);
     return c;
   }
 
@@ -266,7 +399,7 @@
     var L = labelDots();
     var out = $('#out');
     out.width = L.w; out.height = L.h;
-    var g = out.getContext('2d');
+    var g = out.getContext('2d', { willReadFrequently: true });
     g.fillStyle = '#fff'; g.fillRect(0, 0, L.w, L.h);
     $('#pageSize').textContent = '@page{size:' + (L.w / dpi()) + 'in ' + (L.h / dpi()) + 'in;margin:0}';
 
@@ -282,7 +415,8 @@
     }
     $('#empty').hidden = true;
 
-    var r = rotated();
+    var q = ((S.rot % 360) + 360) % 360;
+    var r = (q === 90 || q === 270) ? { width: crop.h, height: crop.w } : { width: crop.w, height: crop.h };
     var m = Math.round((+S.margin || 0) * dpi());
     var aw = Math.max(1, L.w - 2 * m), ah = Math.max(1, L.h - 2 * m);
     var sc = chooseScale(r.width, r.height, aw, ah);
@@ -296,9 +430,16 @@
     // display scaling (grey, anti-aliased bar edges) it puts each edge where
     // the grey says it was instead of snapping it a whole source pixel.
     // Downscaling has to average or it drops whole bars, so it always smooths.
-    g.imageSmoothingEnabled = sc.k < 1 || S.smooth;
-    g.imageSmoothingQuality = 'high';
-    g.drawImage(r, ox, oy, dw, dh);
+    var vec = pdf && pdfCanvas(sc.k);
+    if (vec) {
+      // already rendered at print size: place it, don't resample it
+      g.imageSmoothingEnabled = false;
+      g.drawImage(rotated(vec, { x: 0, y: 0, w: vec.width, h: vec.height }), ox, oy, dw, dh);
+    } else {
+      g.imageSmoothingEnabled = sc.k < 1 || S.smooth;
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(rotated(src, crop), ox, oy, dw, dh);
+    }
 
     var img = g.getImageData(0, 0, L.w, L.h);
     var bits = toBits(img.data, L.w, L.h);
@@ -484,22 +625,27 @@
       renderSoon();
     });
   }
-  bind('#labelSize', 'size', 'change', null, function () { $('#customRow').hidden = S.size !== 'custom'; });
-  bind('#cw', 'cw', 'input', Number);
-  bind('#ch', 'ch', 'input', Number);
+  bind('#labelSize', 'size', 'change', null, function () { $('#customRow').hidden = S.size !== 'custom'; reorient(); });
+  bind('#cw', 'cw', 'input', Number, reorient);
+  bind('#ch', 'ch', 'input', Number, reorient);
   bind('#pct', 'pct', 'input', Number, function () { $('#pctOut').textContent = S.pct + '%'; });
   bind('#smooth', 'smooth');
   bind('#thr', 'thr', 'input', Number, function () { $('#thrOut').textContent = S.thr; });
   bind('#invert', 'invert');
-  bind('#margin', 'margin');
+  bind('#margin', 'margin', 'change', null, reorient);
   bind('#align', 'align');
   bind('#copies', 'copies', 'change', function (v) { return Math.max(1, Math.min(20, parseInt(v, 10) || 1)); });
   bind('#dark', 'dark');
   bind('#speed', 'speed');
   bind('#dpi', 'dpi', 'change', Number);
 
-  $('#rotL').addEventListener('click', function () { S.rot = (S.rot + 270) % 360; render(); });
-  $('#rotR').addEventListener('click', function () { S.rot = (S.rot + 90) % 360; render(); });
+  $('#rotL').addEventListener('click', function () { S.rot = (S.rot + 270) % 360; manualRot = true; render(); });
+  $('#rotR').addEventListener('click', function () { S.rot = (S.rot + 90) % 360; manualRot = true; render(); });
+
+  // a different label shape can flip which way round fits best
+  function reorient() { if (src && S.autoRotate && !manualRot) autoRotate(); }
+  bind('#autoTrim', 'autoTrim');
+  bind('#autoRotate', 'autoRotate', 'change', null, reorient);
 
   (function hydrate() {
     $('#labelSize').value = S.size; $('#customRow').hidden = S.size !== 'custom';
@@ -508,6 +654,7 @@
     $('#smooth').checked = S.smooth;
     $('#thr').value = S.thr; $('#thrOut').textContent = S.thr;
     $('#invert').checked = S.invert;
+    $('#autoTrim').checked = S.autoTrim; $('#autoRotate').checked = S.autoRotate;
     $('#margin').value = S.margin; $('#align').value = S.align;
     $('#copies').value = S.copies;
     $('#dark').value = S.dark; $('#speed').value = S.speed; $('#dpi').value = S.dpi;
@@ -641,7 +788,8 @@
   refreshCaps();
 
   // test hook: lets an automated check drive the pipeline without a file picker
-  window.__labelImage = { load: load, state: S, result: function () { return result; },
+  window.__labelImage = { load: load, state: S, crop: function () { return crop; },
+                          pdfReady: function () { return !!(pdf && hiRes && !hiResJob); }, result: function () { return result; },
                           toZpl: toZpl, pack: pack, render: render,
                           setCrop: function (c) { crop = clampCrop(c); drawCrop(); render(); } };
 })();
