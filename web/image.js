@@ -15,8 +15,9 @@
   var KEY = 'labelprinter.image.v1';
   var TOKKEY = 'labelprinter.token';
   var DEF = {
+    v: 2,
     size: '4x6', cw: 4, ch: 6, rot: 0,
-    fit: 'integer', pct: 100, smooth: true,
+    fit: 'fit', pct: 100, smooth: true,
     bw: 'threshold', thr: 128, invert: false,
     margin: '0.05', align: 'center', copies: 1,
     dark: '', speed: '', dpi: 203, zoom: 'fit'
@@ -24,7 +25,12 @@
   var S = Object.assign({}, DEF);
   try {
     var raw = localStorage.getItem(KEY);
-    if (raw) S = Object.assign({}, DEF, JSON.parse(raw));
+    if (raw) {
+      var saved = JSON.parse(raw);
+      // v1 saved Barcode-safe as the default whether or not anyone chose it
+      if (saved.v !== 2 && saved.fit === 'integer') saved.fit = 'fit';
+      S = Object.assign({}, DEF, saved, { v: 2 });
+    }
   } catch (e) { /* private mode / blocked storage */ }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 

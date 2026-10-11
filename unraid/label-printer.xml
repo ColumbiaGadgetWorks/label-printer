@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>label-printer</Name>
-  <Repository>ghcr.io/columbiagadgetworks/label-printer:testing</Repository>
+  <Repository>ghcr.io/columbiagadgetworks/label-printer:latest</Repository>
   <Registry>https://github.com/ColumbiaGadgetWorks/label-printer/pkgs/container/label-printer</Registry>
   <Network>bridge</Network>
   <MyIP/>
@@ -14,8 +14,8 @@
 This is the LAN instance: never port-forward it or put it behind a reverse proxy. Set PRINT_ALLOW_CIDRS to your LAN subnet only.</Overview>
   <Category>Tools: Productivity:</Category>
   <WebUI>http://[IP]:[PORT:8080]/</WebUI>
-  <TemplateURL>https://raw.githubusercontent.com/ColumbiaGadgetWorks/label-printer/claude/serene-knuth-dw0n54/unraid/label-printer.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/ColumbiaGadgetWorks/label-printer/claude/serene-knuth-dw0n54/unraid/icon.png</Icon>
+  <TemplateURL>https://raw.githubusercontent.com/ColumbiaGadgetWorks/label-printer/main/unraid/label-printer.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/ColumbiaGadgetWorks/label-printer/main/unraid/icon.png</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- simplified app icon for small sizes: barcode label on the printer body colour -->
+  <rect width="64" height="64" rx="14" fill="#2b313b"/>
+  <rect x="12" y="10" width="40" height="44" rx="5" fill="#fff"/>
+  <g fill="#111">
+    <rect x="17" y="16" width="4" height="22"/>
+    <rect x="24" y="16" width="2" height="22"/>
+    <rect x="29" y="16" width="5" height="22"/>
+    <rect x="37" y="16" width="2" height="22"/>
+    <rect x="42" y="16" width="5" height="22"/>
+  </g>
+  <rect x="17" y="43" width="30" height="5" rx="2" fill="#2563eb"/>
+</svg>

@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>Label Printer</title>
-<link rel="icon" href="data:,">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css">
 <style id="pageSize">@page{size:4in 6in;margin:0}</style>
 </head>
@@ -82,8 +84,8 @@
       <div class="group">
         <span class="lbl">Scaling</span>
         <div class="seg wide" id="fit">
-          <button type="button" data-fit="integer" title="Whole-number scale with hard pixel edges. Every bar stays the same width.">Barcode-safe</button>
           <button type="button" data-fit="fit" title="Fill the label as much as possible">Fit label</button>
+          <button type="button" data-fit="integer" title="Whole-number scale with hard pixel edges. Every bar stays the same width.">Barcode-safe</button>
           <button type="button" data-fit="custom">Custom %</button>
         </div>
         <div class="sizerow" id="pctRow" hidden>

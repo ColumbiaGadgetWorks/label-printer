@@ -28,10 +28,11 @@ way:
 The image page does both steps itself, in the browser, before anything reaches
 a driver:
 
-- **Barcode-safe scaling** (the default) uses only whole-number scale factors.
-  At ×3, every source pixel becomes exactly 3×3 dots, so a barcode keeps its
-  bar-width ratios exactly. **Fit label** fills the label instead, for images
-  where that does not matter.
+- **Fit label** (the default) fills the label. **Barcode-safe** uses only
+  whole-number scale factors instead: at ×3, every source pixel becomes exactly
+  3×3 dots, so a barcode keeps its bar-width ratios exactly. The page warns when
+  Fit label lands on an uneven factor such as ×1.73. Switch to Barcode-safe if
+  a barcode then fails to scan.
 - **Smooth edges** (on by default). If the screenshot was taken at 125% or 150%
   Windows display scaling, its bars already have grey, fractional edges. Smoothing
   before the threshold puts each edge where the grey says it was. In testing this
@@ -211,13 +212,14 @@ and pushes it to GitHub Container Registry:
 - `main` publishes `ghcr.io/columbiagadgetworks/label-printer:latest`
 - any other branch publishes `:testing`
 
-`unraid/label-printer.xml` is a Docker-tab template pointing at `:testing`.
+`unraid/label-printer.xml` is a Docker-tab template pointing at `:latest`. To try
+a branch build, change the Repository field to `:testing`.
 
 In the Unraid terminal:
 
 ```bash
 wget -O /boot/config/plugins/dockerMan/templates-user/my-label-printer.xml \
-  https://raw.githubusercontent.com/ColumbiaGadgetWorks/label-printer/claude/serene-knuth-dw0n54/unraid/label-printer.xml
+  https://raw.githubusercontent.com/ColumbiaGadgetWorks/label-printer/main/unraid/label-printer.xml
 ```
 
 Then go to **Docker → Add Container**, pick **label-printer** from the Template
@@ -325,13 +327,14 @@ test_zpl.py                   ZPL encoder round-trip + /api/print-bitmap end to 
 Dockerfile                    python:alpine + cups-client
 docker-compose.yml            the two-instance deployment
 docker-compose.nobuild.yml    nginx, static only, no direct print
-unraid/label-printer.xml      Unraid Docker-tab template (LAN instance, :testing image)
+unraid/label-printer.xml      Unraid Docker-tab template (LAN instance, :latest image)
 unraid/icon.svg, icon.png     container icon (PNG rendered from the SVG, 512×512)
 .github/workflows/docker.yml  tests, then build + push to ghcr.io
 nginx.conf                    used only by the nobuild variant
 web/index.html                image label page: crop, 1-bit conversion, ZPL
 web/image.js                  crop UI, scaling, threshold/dither, ZPL encoder
 web/text.html                 text label page
+web/favicon.svg, *.png         favicon (SVG, 32px PNG, 180px apple-touch-icon)
 web/style.css                 styling, and the @media print rules that matter
 web/app.js                    text page: auto-fit, rasteriser, state persistence
 ```
